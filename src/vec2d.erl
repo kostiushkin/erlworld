@@ -4,7 +4,7 @@
 %%% @author Fabian Hachenberg
 %%% @doc
 %%% Helper code for 2d vector algebra
-%%% 
+%%% @end
 
 -module( vec2d ).
 -author("Fabian Hachenberg").

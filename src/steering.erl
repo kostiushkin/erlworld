@@ -7,6 +7,8 @@
 %%% http://www.red3d.com/cwr/steer/ for an introduction.
 %%% The implementation is based on OpenSteer
 %%% http://opensteer.sourceforge.net
+%%% as well as the book "Artificial Intelligence for Games" 
+%%% by Ian Millington and John Funge
 %%% @end 
 
 -module( steering ).
@@ -19,7 +21,7 @@
 
 -export([        
         clamp_real/2,
-        gap_real/2,
+        threshold_real/2,
         v_from_seek/2,
         v_from_flee/3,
         steer_to_target_velocity/3,
@@ -31,7 +33,8 @@
 clamp_real(X, {Xmin, Xmax}) ->
         max(min(X, Xmax), Xmin).
 
-gap_real(X, {Xgmin, Xgmax}), when  ->
+%% @doc if X in [Xgmin, Xgmax], function returns 0
+threshold_real(X, {Xgmin, Xgmax})  ->
         if X >= Xgmin, X =< Xgmax -> 
             0;
         true -> 

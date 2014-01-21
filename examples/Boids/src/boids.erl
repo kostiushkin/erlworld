@@ -7,7 +7,8 @@
 %%%
 %%% You can add boids by left-clicking anywhere in the window. The
 %%% boids will be created in the direction that the mouse was last
-%%% moving in. The boids behave following to.
+%%% moving in. The behaviour of the boids is described here
+%%% http://www.red3d.com/cwr/boids/
 %%%
 %%% The code is based on the "circles" example by Joseph Lenton
 %%% @end
@@ -141,12 +142,15 @@ new_boid(BoidImg, XY, Angle) ->
     UpdateInterval=50,
     
     State  = actor_state:new( boid, XY, Size, [
-            {orientation, Angle},
-            {velocity, {Speed, 0.0}} ,
-            {last_time, now()},
+            {orientation, Angle}, %orientation of boid
+            {velocity, {Speed, 0.0}} , %Linear and Angular velocity of boid
+            {last_time, now()}, %used to adapt physics update to rate of updates
             %aim for even distribution of neighbour updates
-            {update, round(rand:random( ?RANDOM, 0, UpdateInterval))},
-            {neighbs, []}]),
+            {update, round(rand:random( ?RANDOM, 0, UpdateInterval))}, %neighbour information is very expensive to update
+                                                                       %therefore it gets updated only every UpdateInterval steps.
+                                                                       %boids get - during initialization - a random initial value
+                                                                       %to achieve a even distribution of the updates!
+            {neighbs, []}]), %current state of the neighbour information for this boid
     
     %Maximum Linear Velocity and Force
     Max_LinV = 10.0,
@@ -161,6 +165,7 @@ new_boid(BoidImg, XY, Angle) ->
     Tol_LinF = 1.0,
     Tol_AngF = 5.0,
     
+    %this routine implements the boid behaviour, it is periodically called for each boid 
     Act = fun( AS, Parent ) ->
         %determine time passed
         LastTime =  actor_state:get( AS, last_time ),
@@ -217,8 +222,7 @@ new_boid(BoidImg, XY, Angle) ->
         FacCohese=3.0,
         FacWander=0.1,
 
-        Dt = TimeDiff / 16822.0, 
-        A = 0.5, %Used to mix the new angular velocity with the last one, in order to minimize flickering
+        Dt = TimeDiff / 16822.0,  %the factor 16822.0 is rather arbitrarily chosen to scale the variables to a value around 1.0
 
         %weighted sum of all boid behaviour components
         {AvX, AvY} = Avoid,
@@ -227,10 +231,15 @@ new_boid(BoidImg, XY, Angle) ->
         {WaX, WaY} = steering:steer_to_wander(#wander_state{radius=100.0, centeroff_factor={0.0, 0.00}, delta=0.03}),
         {LinF, AngF}   = {  AvX*FacAvoid+AlX*FacAlign+CoX*FacCohese+WaX*FacWander,    AvY*FacAvoid+AlY*FacAlign+CoY*FacCohese+WaY*FacWander    },
         %clamp forces accordingly
-        {LinFC, AngFC} = {  steering:gap_real(steering:clamp_real(LinF,{-Max_LinF, Max_LinF}), {-Tol_LinF, Tol_LinF}),
-                            steering:gap_real(steering:clamp_real(AngF,{-Max_AngF, Max_AngF}), {-Tol_AngF, Tol_AngF})},
+        %There are two methods used for clamping here:
+        %1. forces cannot exceed a given constant (which is different for angular and linear velocity)
+        %2. forces are set to 0 if they do _not_ exceed another constant. That way, like human beings, boids have a threshold of sensitivity for steering forces.
+        %   Small deviations are not noticed and ignored accordingly. If the forces exceed this threshold of sensitivity they react rather strongly.
+        {LinFC, AngFC} = {  steering:threshold_real(steering:clamp_real(LinF,{-Max_LinF, Max_LinF}), {-Tol_LinF, Tol_LinF}),
+                            steering:threshold_real(steering:clamp_real(AngF,{-Max_AngF, Max_AngF}), {-Tol_AngF, Tol_AngF})},
         
         %euler integration for angular velocity and angle
+        A = 0.5, %Used to mix the new angular velocity with the last one, in order to minimize flickering
         NewAngV = AngV * (1-A) + ( + Dt * AngFC) * A,
         NewAngVC  = steering:clamp_real(NewAngV, {-Max_AngV, Max_AngV}),
         NewAngle = CAngle + Dt * NewAngVC,
